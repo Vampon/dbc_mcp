@@ -7,7 +7,6 @@ from cantools.database.can.message import Message
 from cantools.database.can.signal import Signal
 from cantools.database.can.formats.dbc import DbcSpecifics
 from typing import Dict, List, Any
-from runtime import Args
 import requests
 from io import StringIO
 import ast
@@ -1127,4 +1126,4 @@ def parse_requirements(file_path: str):
 if __name__ == "__main__":
     # 默认使用stdio传输，适合本地MCP客户端（如Claude Desktop）
     # 也可使用 'sse' 或 'http' 进行网络传输
-    mcp.run(transport="http", port=8010)
+    mcp.run(transport="http", port=8081)
