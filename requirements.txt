@@ -1,4 +1,4 @@
-cantools==41.2.1
+cantools==38.0.0
 fastmcp==3.1.1
 mcp==1.26.0
 numpy==2.2.6
