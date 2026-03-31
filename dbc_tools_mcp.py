@@ -12,8 +12,13 @@ from io import StringIO
 import ast
 import re
 from fastmcp import FastMCP
+import os
+import uuid
+
 
 mcp = FastMCP("dbc_tools")
+DBC_STORAGE_DIR = "/tmp/dbc_store"
+os.makedirs(DBC_STORAGE_DIR, exist_ok=True)
 
 
 def _to_int_if_hex(value: Any) -> Any:
@@ -703,6 +708,18 @@ def normalize_frame_id(frame_id):
         return None
     return frame_id & 0x1FFFFFFF
 
+def save_dbc_to_file(dbc_text: str) -> str:
+    dbc_id = str(uuid.uuid4())
+    path = os.path.join(DBC_STORAGE_DIR, f"{dbc_id}.dbc")
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(dbc_text)
+
+    return path  # 直接当 dbc_id 用
+
+def load_dbc_from_file(path: str):
+    return cantools.database.load_file(path)
+
 # =========================
 # ====== 工具1：DBC =======
 # =========================
@@ -771,14 +788,18 @@ def handler(args):
     try:
         # 加载DBC文件
         # db = cantools.database.load_file(dbc_file_path)
-        if isinstance(dbc_file_path, str) and dbc_file_path.startswith(('http://', 'https://', 'ftp://')):
+        if isinstance(dbc_file_path, str) and os.path.exists(dbc_file_path):
+            # ✅ 本地文件（dbc_id）
+            db = load_dbc_from_file(dbc_file_path)
+        elif isinstance(dbc_file_path, str) and dbc_file_path.startswith(('http://', 'https://', 'ftp://')):
+            # URL
             db = load_dbc_from_url(dbc_file_path)
         else:
-
+            # 纯DBC字符串
             db = load_dbc_from_string(dbc_file_path)
+
         # 根据操作类型执行相应操作
         result = None
-
         if operation_type == "query_message":
             result = _query_message(db, identifier)
 
@@ -888,9 +909,18 @@ def handler(args):
         #         f.write(db.as_dbc_string())
 
         args.logger.info(f"操作完成: {operation_type}")
-        args.logger.info(db._frame_id_to_message)
-        args.logger.info(db.as_dbc_string())
-        return result
+        new_dbc_text = db.as_dbc_string()
+
+        # 保存到文件
+        new_dbc_id = save_dbc_to_file(new_dbc_text)
+
+        args.logger.info(f"新DBC已保存: {new_dbc_id}")
+
+        # 不要再返回 dbc_text
+        return {
+            **(result if isinstance(result, dict) else {"result": result}),
+            "dbc_id": new_dbc_id
+        }
 
     except Exception as e:
         args.logger.error(f"操作失败: {str(e)}")
