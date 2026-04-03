@@ -935,7 +935,7 @@ def handler(args):
 
         args.logger.info(f"操作完成: {operation_type}")
         new_dbc_text = db.as_dbc_string()
-        print(new_dbc_text)
+        args.logger.info(new_dbc_text)
         # 保存到文件
         new_dbc_id = save_dbc_to_file(new_dbc_text)
 
@@ -1053,16 +1053,28 @@ def _parse_sheet(df_raw, logger):
 
     logger.info(f"识别列: {list(df.columns)}")
 
-    msg_name_col = _detect_column(df.columns, ["msg name", "报文名称"])
+
+    requirement_type_col = _detect_column(df.columns, ["需求类型"])
+    msg_name_col = _detect_column(df.columns, ["msg name", "message name", "报文名称"])
+    msg_type_col = _detect_column(df.columns, ["msg type", "message type", "报文类型"])
     msg_id_col = _detect_column(df.columns, ["msg id", "id"])
+    msg_send_type_col = _detect_column(df.columns, ["msg send type", "报文发送类型"])
+    msg_description_col = _detect_column(df.columns, ["signal description", "信号描述"])
     msg_len_col = _detect_column(df.columns, ["msg length", "报文长度"])
     recv_col = _detect_column(df.columns, ["接收网段"])
     send_col = _detect_column(df.columns, ["发送网段"])
-    cycle_col = _detect_column(df.columns, ["cycle"])
+    cycle_col = _detect_column(df.columns, ["cycle", "报文周期"])
 
     sig_name_col = _detect_column(df.columns, ["signal name", "信号名称"])
-    start_bit_col = _detect_column(df.columns, ["start"])
-    sig_len_col = _detect_column(df.columns, ["signal length"])
+    sig_description_col = _detect_column(df.columns, ["signal description", "信号描述"])
+    start_bit_col = _detect_column(df.columns, ["start", "起始位"])
+    sig_len_col = _detect_column(df.columns, ["signal length", "信号长度"])
+    sig_data_type_col = _detect_column(df.columns, ["data type", "数据类型"])
+    factor_col = _detect_column(df.columns, ["resolution"])
+    offset_col = _detect_column(df.columns, ["offset"])
+    initial_value_col = _detect_column(df.columns, ["initial value", "初始值"])
+    unit_col = _detect_column(df.columns, ["unit"])
+    sig_value_description_col = _detect_column(df.columns, ["signal value description", "信号值描述"])
 
     fill_cols = [c for c in [msg_name_col, msg_id_col, msg_len_col, cycle_col, recv_col, send_col] if c]
     if fill_cols:
