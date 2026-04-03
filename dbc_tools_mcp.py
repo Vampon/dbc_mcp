@@ -17,7 +17,8 @@ from io import BytesIO
 import json
 import pandas as pd
 import numpy as np
-
+import random
+random.seed(42) # 固定种子值
 mcp = FastMCP("dbc_tools")
 DBC_STORAGE_DIR = "/tmp/dbc_store"
 os.makedirs(DBC_STORAGE_DIR, exist_ok=True)
@@ -137,6 +138,38 @@ def _normalize_nodes(value: Any) -> List[str]:
         return [item.strip() for item in s.split(",") if item.strip()]
     return [str(value)]
 
+def _get_all_nodes(db) -> List[str]:
+    """
+    从DBC中提取所有节点（BU_）
+    """
+    if hasattr(db, "nodes") and db.nodes:
+        return [node.name for node in db.nodes]
+    return []
+
+def _resolve_nodes(db, value: Any) -> List[str]:
+    """
+    规则：
+    - CCU -> 保持 CCU
+    - ECU -> 从 DBC 的 BU_ 中随机选一个（排除 CCU）
+    """
+    nodes = _normalize_nodes(value)
+    if not nodes:
+        return []
+    all_nodes = _get_all_nodes(db)
+    # 过滤掉 CCU
+    candidate_nodes = [n for n in all_nodes if n != "CCU"]
+    resolved = []
+    for n in nodes:
+        if n == "CCU":
+            resolved.append("CCU")
+        elif n == "ECU":
+            if not candidate_nodes:
+                raise ValueError("DBC中没有可用的ECU节点（BU_）")
+            resolved.append(random.choice(candidate_nodes))
+        else:
+            # 其他值原样保留
+            resolved.append(n)
+    return resolved
 
 def _get_attr_map_from_dbc_object(obj) -> Dict[str, Any]:
     """兼容 cantools 不同版本：obj.dbc / obj.dbc_specifics。"""
@@ -452,7 +485,7 @@ def _add_message(db, frame_id: int, name: str, dlc: int,
             name=name,
             length=dlc,
             signals=[],
-            senders=_normalize_nodes(senders),
+            senders=_resolve_nodes(senders),
             is_extended_frame=True,
             cycle_time=cycle_time,
             comment=comment
@@ -460,8 +493,6 @@ def _add_message(db, frame_id: int, name: str, dlc: int,
 
         db.messages.append(msg)
         db.refresh()
-        print(db.messages)
-        print(db._name_to_message)
         # 同步写入属性（例如 GenMsgSendType）
         if attributes:
             for attr_name, attr_value in attributes.items():
@@ -512,7 +543,7 @@ def _add_signal(db, message_identifier: Any, signal_name: str,
             maximum=maximum,
             unit=unit,
             choices=choices,
-            receivers=_normalize_nodes(receivers)
+            receivers=_resolve_nodes(receivers)
         )
 
         msg.signals.append(signal)
@@ -904,7 +935,7 @@ def handler(args):
 
         args.logger.info(f"操作完成: {operation_type}")
         new_dbc_text = db.as_dbc_string()
-
+        print(new_dbc_text)
         # 保存到文件
         new_dbc_id = save_dbc_to_file(new_dbc_text)
 
@@ -1025,13 +1056,15 @@ def _parse_sheet(df_raw, logger):
     msg_name_col = _detect_column(df.columns, ["msg name", "报文名称"])
     msg_id_col = _detect_column(df.columns, ["msg id", "id"])
     msg_len_col = _detect_column(df.columns, ["msg length", "报文长度"])
+    recv_col = _detect_column(df.columns, ["接收网段"])
+    send_col = _detect_column(df.columns, ["发送网段"])
     cycle_col = _detect_column(df.columns, ["cycle"])
 
     sig_name_col = _detect_column(df.columns, ["signal name", "信号名称"])
     start_bit_col = _detect_column(df.columns, ["start"])
     sig_len_col = _detect_column(df.columns, ["signal length"])
 
-    fill_cols = [c for c in [msg_name_col, msg_id_col, msg_len_col, cycle_col] if c]
+    fill_cols = [c for c in [msg_name_col, msg_id_col, msg_len_col, cycle_col, recv_col, send_col] if c]
     if fill_cols:
         df[fill_cols] = df[fill_cols].fillna(method="ffill")
 
@@ -1045,11 +1078,16 @@ def _parse_sheet(df_raw, logger):
         first = group.iloc[0]
 
         msg = {
+            "requirement_type": first.get(requirement_type_col),
             "msg_name": msg_name,
+            "msg_type": first.get(msg_type_col),
+            "msg_send_type": first.get(msg_send_type_col), # 中文要映射为英文，如周期->Period，这块让大模型自动转换
             "msg_id": first.get(msg_id_col),
             "msg_length": first.get(msg_len_col),
+            "senders": first.get(send_col),
             "cycle_time": first.get(cycle_col),
-            "signals": []
+            "msg_description": first.get(msg_description_col),
+            "signals": [] # 添加报文时信号先为空
         }
 
         for _, row in group.iterrows():
@@ -1069,10 +1107,20 @@ def _parse_sheet(df_raw, logger):
 
             signal = {
                 "sig_name": sig_name,
+                "sig_description": row.get(sig_description_col),
+                "byte_order": "intel standard",
                 "start_bit": row.get(start_bit_col),
+                "sig_send_type": "",  # 这个和报文的发送类型关联，（周期->Period）-> Cycle, （事件->NoMsgSendType）-> OnWrite, 这块也让大模型自动转换
                 "sig_length": sig_len,
-                "sig_min_value": sig_min_value,
-                "sig_max_value": sig_max_value,
+                "sig_data_type": row.get(sig_data_type_col),
+                "factor": row.get(factor_col),
+                "offset": row.get(offset_col),
+                "sig_min_value": sig_min_value,  # 自动填充
+                "sig_max_value": sig_max_value,  # 自动填充
+                "sig_initial_value": row.get(initial_value_col),
+                "unit": row.get(unit_col),
+                "sig_value_description": row.get(sig_value_description_col),  # 这里需要解析成字典形式，交给模型做转换
+                "receiver": row.get(recv_col)
             }
 
             msg["signals"].append(signal)
