@@ -485,7 +485,7 @@ def _add_message(db, frame_id: int, name: str, dlc: int,
             name=name,
             length=dlc,
             signals=[],
-            senders=_resolve_nodes(senders),
+            senders=_resolve_nodes(db, senders),
             is_extended_frame=True,
             cycle_time=cycle_time,
             comment=comment
@@ -543,7 +543,7 @@ def _add_signal(db, message_identifier: Any, signal_name: str,
             maximum=maximum,
             unit=unit,
             choices=choices,
-            receivers=_resolve_nodes(receivers)
+            receivers=_resolve_nodes(db, receivers)
         )
 
         msg.signals.append(signal)
