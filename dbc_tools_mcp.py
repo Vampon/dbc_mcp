@@ -6,7 +6,7 @@ import cantools.database
 from cantools.database.can.message import Message
 from cantools.database.can.signal import Signal
 from cantools.database.can.formats.dbc import DbcSpecifics
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Annotated
 import requests
 import ast
 import re
@@ -755,12 +755,6 @@ def handler(args):
     支持的操作类型:
     - query_message: 查询报文
     - query_signal: 查询信号
-    - query_attributes: 查询指定报文的全部属性
-    - query_attribute_definitions: 查询全部属性定义（BA_DEF_）
-    - query_message_attribute: 查询指定报文的单个属性
-    - query_signal_attribute: 查询指定信号的单个属性
-    - set_message_attribute: 设置指定报文属性
-    - set_signal_attribute: 设置信号属性
     - add_message: 新增报文（可带 attributes）
     - add_signal: 新增信号（可带 attributes）
     - delete_message: 删除报文
@@ -789,7 +783,6 @@ def handler(args):
 
     parameters = args.input.parameters or {}
     params_dict = _as_dict(parameters)
-    args.logger.info(params_dict)
     signals_obj = params_dict.get("signals")
     signals_dict = _as_dict(signals_obj)
 
@@ -804,10 +797,7 @@ def handler(args):
     sig_attributes = signals_dict.get("attributes") or {}
     msg_attributes = _as_dict(msg_attributes)
     sig_attributes = _as_dict(sig_attributes)
-    args.logger.info(msg_attributes)
     args.logger.info(f"DBC操作: {operation_type}, 文件: {dbc_file_path}")
-    args.logger.info(output_path)
-    args.logger.info(identifier)
 
 
     try:
@@ -954,12 +944,12 @@ def handler(args):
 
 @mcp.tool()
 def dbc_operation(
-    operation_type: str,
-    dbc_file_path: str,
-    output_path: str = None,
-    identifier: Any = None,
-    signal_name: str = None,
-    parameters: Dict[str, Any] = None,
+    operation_type: Annotated[str, "操作类型：query_message / add_message / add_signal / validate 等"],
+    dbc_file_path: Annotated[str, "DBC文本 / URL / dbc_id"],
+    identifier: Annotated[Any, "报文ID（支持0x）或报文名称"] = None,
+    signal_name: Annotated[str, "信号名称"] = None,
+    parameters: Annotated[Dict[str, Any], "操作参数（signals / attributes等）,具体根据operation_type参考插件接口规范"] = None,
+    output_path: Annotated[str, "输出文件路径（可选）"] = None,
 ):
     """
     DBC文件统一操作接口（FastMCP封装版）
@@ -1191,7 +1181,7 @@ def parse_handler(args):
 
 
 @mcp.tool()
-def parse_requirements(file_path: str):
+def parse_requirements(file_path: Annotated[str, "需求文档路径"]):
     """
     Excel需求解析工具
     """
