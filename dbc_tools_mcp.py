@@ -189,12 +189,11 @@ def _query_attributes(db, identifier: Any) -> Dict[str, Any]:
 
         return {
             "exists": True,
-            "data": result,
-            "dbc_text": db.as_dbc_string()
+            "data": result
         }
 
     except KeyError as e:
-        return {"exists": False, "error": str(e), "dbc_text": db.as_dbc_string()}
+        return {"exists": False, "error": str(e)}
 
 
 def _query_attribute_definitions(db) -> Dict[str, Any]:
@@ -218,8 +217,7 @@ def _query_attribute_definitions(db) -> Dict[str, Any]:
     return {
         "success": True,
         "count": len(definitions),
-        "data": definitions,
-        "dbc_text": db.as_dbc_string()
+        "data": definitions
     }
 
 # def _ensure_dbc_container(obj):
@@ -292,8 +290,7 @@ def _set_message_attribute(db, identifier: Any, attr_name: str, attr_value: Any)
             "attribute": attr_name,
             "raw_value": actual_value,
             "resolved_value": _enum_label_from_index(attr_def, actual_value),
-        },
-        "dbc_text": db.as_dbc_string()
+        }
     }
 
 
@@ -329,8 +326,7 @@ def _set_signal_attribute(db, message_identifier: Any, signal_name: str,
             "attribute": attr_name,
             "raw_value": actual_value,
             "resolved_value": _enum_label_from_index(attr_def, actual_value),
-        },
-        "dbc_text": db.as_dbc_string()
+        }
     }
 
 
@@ -353,8 +349,7 @@ def _query_message_attribute(db, identifier: Any, attr_name: str) -> Dict[str, A
             "raw_value": raw_value,
             "resolved_value": _enum_label_from_index(attr_def, raw_value),
             "type": getattr(attr_def, "type_name", None)
-        },
-        "dbc_text": db.as_dbc_string()
+        }
     }
 
 
@@ -382,8 +377,7 @@ def _query_signal_attribute(db, message_identifier: Any, signal_name: str,
             "raw_value": raw_value,
             "resolved_value": _enum_label_from_index(attr_def, raw_value),
             "type": getattr(attr_def, "type_name", None)
-        },
-        "dbc_text": db.as_dbc_string()
+        }
     }
 
 
@@ -407,11 +401,10 @@ def _query_message(db, identifier: Any) -> Dict[str, Any]:
                 "cycle_time": msg.cycle_time,
                 "senders": msg.senders,
                 "signal_count": len(msg.signals)
-            },
-            "dbc_text": db.as_dbc_string()
+            }
         }
     except KeyError:
-        return {"exists": False, "data": None, "dbc_text": db.as_dbc_string()}
+        return {"exists": False, "data": None}
 
 
 def _query_signal(db, message_identifier: Any, signal_name: str) -> Dict[str, Any]:
@@ -442,11 +435,10 @@ def _query_signal(db, message_identifier: Any, signal_name: str) -> Dict[str, An
                 "unit": signal.unit,
                 "byte_order": signal.byte_order,
                 "is_signed": signal.is_signed
-            },
-            "dbc_text": db.as_dbc_string()
+            }
         }
     else:
-        return {"exists": False, "data": None, "dbc_text": db.as_dbc_string()}
+        return {"exists": False, "data": None}
 
 
 def _add_message(db, frame_id: int, name: str, dlc: int,
@@ -477,8 +469,7 @@ def _add_message(db, frame_id: int, name: str, dlc: int,
 
         return {
             "success": True,
-            "message": f"成功添加报文: {name} (ID: {hex(frame_id)})",
-            "dbc_text": db.as_dbc_string()
+            "message": f"成功添加报文: {name} (ID: {hex(frame_id)})"
         }
     except Exception as e:
         return {
@@ -533,8 +524,7 @@ def _add_signal(db, message_identifier: Any, signal_name: str,
 
         return {
             "success": True,
-            "message": f"成功添加信号: {msg.name}.{signal_name}",
-            "dbc_text": db.as_dbc_string()
+            "message": f"成功添加信号: {msg.name}.{signal_name}"
         }
     except Exception as e:
         return {
@@ -556,8 +546,7 @@ def _delete_message(db, identifier: Any) -> Dict[str, Any]:
 
         return {
             "success": True,
-            "message": f"成功删除报文: {msg_name}",
-            "dbc_text": db.as_dbc_string()
+            "message": f"成功删除报文: {msg_name}"
         }
     except Exception as e:
         return {
@@ -587,8 +576,7 @@ def _delete_signal(db, message_identifier: Any, signal_name: str) -> Dict[str, A
 
         return {
             "success": True,
-            "message": f"成功删除信号: {msg.name}.{signal_name}",
-            "dbc_text": db.as_dbc_string()
+            "message": f"成功删除信号: {msg.name}.{signal_name}"
         }
     except Exception as e:
         return {
@@ -611,8 +599,7 @@ def _modify_message(db, identifier: Any, modifications: Dict[str, Any]) -> Dict[
 
         return {
             "success": True,
-            "message": f"成功修改报文: {msg.name}",
-            "dbc_text": db.as_dbc_string()
+            "message": f"成功修改报文: {msg.name}"
         }
     except Exception as e:
         return {
@@ -651,8 +638,7 @@ def _modify_signal(db, message_identifier: Any, signal_name: str,
 
         return {
             "success": True,
-            "message": f"成功修改信号: {msg.name}.{signal_name}",
-            "dbc_text": db.as_dbc_string()
+            "message": f"成功修改信号: {msg.name}.{signal_name}"
         }
     except Exception as e:
         return {
@@ -690,8 +676,7 @@ def _validate(db) -> Dict[str, Any]:
         "errors": errors,
         "warnings": warnings,
         "message_count": len(db.messages),
-        "signal_count": sum(len(msg.signals) for msg in db.messages),
-        "dbc_text": db.as_dbc_string()
+        "signal_count": sum(len(msg.signals) for msg in db.messages)
     }
 
 
