@@ -1135,22 +1135,23 @@ def _parse_sheet(df_raw, logger):
 def _parse_excel(file_path, logger):
     logger.info(f"开始读取Excel: {file_path}")
 
-    # 1️⃣ 下载文件
-    res = requests.get(file_path)
-    res.raise_for_status()
+    # 1️⃣ 读取文件内容（支持URL和本地路径）
+    if isinstance(file_path, str) and file_path.startswith(('http://', 'https://', 'ftp://')):
+        res = requests.get(file_path)
+        res.raise_for_status()
+        excel_bytes = res.content
+    else:
+        with open(file_path, 'rb') as f:
+            excel_bytes = f.read()
 
-    # 2️⃣ 用 BytesIO 包装
-    excel_file = BytesIO(res.content)
-
-    # 3️⃣ 读取
-    xls = pd.ExcelFile(excel_file)
-
-    # xls = pd.ExcelFile(file_path)
+    # 2️⃣ 获取Sheet列表
+    xls = pd.ExcelFile(BytesIO(excel_bytes))
     all_messages = []
 
     for sheet in xls.sheet_names:
         logger.info(f"解析Sheet: {sheet}")
-        df_raw = pd.read_excel(file_path, sheet_name=sheet, header=None)
+        # 3️⃣ 每次用新的 BytesIO（避免seek问题）
+        df_raw = pd.read_excel(BytesIO(excel_bytes), sheet_name=sheet, header=None)
 
         if df_raw.empty:
             continue
