@@ -7,6 +7,7 @@ from cantools.database.can.message import Message
 from cantools.database.can.signal import Signal
 from cantools.database.can.formats.dbc import DbcSpecifics
 from typing import Dict, List, Any, Annotated
+from pydantic import Field
 import requests
 import ast
 import re
@@ -944,12 +945,12 @@ def handler(args):
 
 @mcp.tool()
 def dbc_operation(
-    operation_type: Annotated[str, "操作类型：query_message / add_message / add_signal / validate 等"],
-    dbc_file_path: Annotated[str, "DBC文本 / URL / dbc_id"],
-    identifier: Annotated[Any, "报文ID（支持0x）或报文名称"] = None,
-    signal_name: Annotated[str, "信号名称"] = None,
-    parameters: Annotated[Dict[str, Any], "操作参数（signals / attributes等）,具体根据operation_type参考插件接口规范"] = None,
-    output_path: Annotated[str, "输出文件路径（可选）"] = None,
+    operation_type: Annotated[str, Field(description="操作类型：query_message / add_message / add_signal / validate 等")],
+    dbc_file_path: Annotated[str, Field(description="DBC文本 / URL / dbc_id")],
+    identifier: Annotated[Any, Field(description="报文ID（支持0x）或报文名称")] = None,
+    signal_name: Annotated[str, Field(description="信号名称")] = None,
+    parameters: Annotated[Dict[str, Any], Field(description="操作参数（signals / attributes等），具体根据operation_type参考插件接口规范")] = None,
+    output_path: Annotated[str, Field(description="输出文件路径（可选）")] = None,
 ):
     """
     DBC文件统一操作接口（FastMCP封装版）
@@ -1182,7 +1183,9 @@ def parse_handler(args):
 
 
 @mcp.tool()
-def parse_requirements(file_path: Annotated[str, "需求文档路径"]):
+def parse_requirements(
+    file_path: Annotated[str, Field(description="需求文档路径（Excel格式）")]
+):
     """
     Excel需求解析工具
     """
