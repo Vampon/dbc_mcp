@@ -6,7 +6,7 @@ import cantools.database
 from cantools.database.can.message import Message
 from cantools.database.can.signal import Signal
 from cantools.database.can.formats.dbc import DbcSpecifics
-from typing import Dict, List, Any, Annotated
+from typing import Dict, List, Any, Annotated, Optional
 from pydantic import Field
 import requests
 import ast
@@ -22,8 +22,9 @@ import random
 random.seed(42) # 固定种子值
 mcp = FastMCP("dbc_tools")
 DBC_STORAGE_DIR = "/tmp/dbc_store"
+DBC_FINAL_DIR = "./data/dbc_output"
 os.makedirs(DBC_STORAGE_DIR, exist_ok=True)
-
+os.makedirs(DBC_FINAL_DIR, exist_ok=True)
 
 def _to_int_if_hex(value: Any) -> Any:
     """将十六进制/十进制字符串转换为整数，其他类型原样返回。"""
@@ -721,8 +722,17 @@ def _validate(db) -> Dict[str, Any]:
 def load_dbc_from_url(url):
     res = requests.get(url)
     res.raise_for_status()
-    # ✅ 用 content + decode
-    dbc_content = res.content.decode("utf-8")
+    raw = res.content
+    # ✅ 多编码兜底（按概率排序）
+    for encoding in ["gbk", "utf-8", "cp1252", "latin-1"]:
+        try:
+            dbc_content = raw.decode(encoding)
+            return cantools.database.load_string(dbc_content, 'dbc')
+        except Exception:
+            continue
+
+    # ✅ 最后兜底（绝不报错）
+    dbc_content = raw.decode("latin-1", errors="ignore")
     return cantools.database.load_string(dbc_content, 'dbc')
 
 def load_dbc_from_string(dbc_content):
@@ -735,13 +745,29 @@ def normalize_frame_id(frame_id):
     return frame_id & 0x1FFFFFFF
 
 def save_dbc_to_file(dbc_text: str) -> str:
+    """
+    保存过程中临时DBC文件
+    """
     dbc_id = str(uuid.uuid4())
     path = os.path.join(DBC_STORAGE_DIR, f"{dbc_id}.dbc")
 
-    with open(path, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="gbk") as f:
         f.write(dbc_text)
 
     return path  # 直接当 dbc_id 用
+
+def save_final_dbc(dbc_text: str, name_hint: str = None) -> str:
+    """
+    保存最终DBC文件
+    """
+    if name_hint:
+        file_name = f"{name_hint}.dbc"
+    else:
+        file_name = f"final_{uuid.uuid4().hex[:8]}.dbc"
+    path = os.path.join(DBC_FINAL_DIR, file_name)
+    with open(path, "w", newline='', encoding="gbk", errors='ignore') as f:
+        f.write(dbc_text)
+    return path
 
 def load_dbc_from_file(path: str):
     return cantools.database.load_file(path)
@@ -932,6 +958,18 @@ def handler(args):
 
         args.logger.info(f"新DBC已保存: {new_dbc_id}")
 
+        # 如果是validate → 存最终文件
+        final_path = None
+        if operation_type == "validate":
+            # todo: 文件名再看看怎么命名合适
+            try:
+                first_msg_name = db.messages[0].name if db.messages else None
+            except Exception:
+                first_msg_name = None
+
+            final_path = save_final_dbc(new_dbc_text)
+            args.logger.info(f"最终DBC已保存: {final_path}")
+
         # 不要再返回 dbc_text
         return {
             **(result if isinstance(result, dict) else {"result": result}),
@@ -947,10 +985,10 @@ def handler(args):
 def dbc_operation(
     operation_type: Annotated[str, Field(description="操作类型：query_message / add_message / add_signal / validate 等")],
     dbc_file_path: Annotated[str, Field(description="DBC文本 / URL / dbc_id")],
-    identifier: Annotated[Any, Field(description="报文ID（支持0x）或报文名称")] = None,
-    signal_name: Annotated[str, Field(description="信号名称")] = None,
-    parameters: Annotated[Dict[str, Any], Field(description="操作参数（signals / attributes等），具体根据operation_type参考插件接口规范")] = None,
-    output_path: Annotated[str, Field(description="输出文件路径（可选）")] = None,
+    identifier: Annotated[Optional[str], Field(description="报文ID（支持0x）或报文名称")] = None,
+    signal_name: Annotated[Optional[str], Field(description="信号名称")] = None,
+    parameters: Annotated[Optional[Dict[str, Any]], Field(description="操作参数（signals / attributes等），具体根据operation_type参考插件接口规范")] = None,
+    output_path: Annotated[Optional[str], Field(description="输出文件路径（可选）")] = None,
 ):
     """
     DBC文件统一操作接口（FastMCP封装版）
