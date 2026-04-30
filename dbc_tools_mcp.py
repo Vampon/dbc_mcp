@@ -48,6 +48,9 @@ DBC_FINAL_DIR = os.environ.get("DBC_FINAL_DIR", os.path.join(DBC_DATA_ROOT, "dbc
 DBC_SESSION_DIR = os.environ.get("DBC_SESSION_DIR", os.path.join(DBC_DATA_ROOT, "sessions"))
 DBC_LOG_DIR = os.environ.get("DBC_LOG_DIR", os.path.join(DBC_DATA_ROOT, "logs"))
 DBC_SESSION_TTL_SECONDS = int(os.environ.get("DBC_SESSION_TTL", 24 * 3600))
+# DBC 文件落盘编码：默认 gb18030（GBK 超集，可编码全部 Unicode；CANoe/CANalyzer 兼容）
+# 如部署对端只认 GBK / UTF-8，可通过环境变量覆盖
+DBC_ENCODING = os.environ.get("DBC_ENCODING", "gb18030")
 # 用户能访问到的 MCP 服务地址（不要带尾斜杠）
 # 例：http://10.0.0.5:8081 / https://mcp.yourdomain.com
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8081")
@@ -97,6 +100,14 @@ async def download_dbc(request: Request):
 
 def _build_download_url(file_name: str) -> str:
     return f"{PUBLIC_BASE_URL.rstrip('/')}/download/{quote(file_name)}"
+
+
+def _is_encodable(ch: str, encoding: str) -> bool:
+    try:
+        ch.encode(encoding)
+        return True
+    except UnicodeEncodeError:
+        return False
 
 
 def _to_int_if_hex(value: Any) -> Any:
@@ -1216,6 +1227,24 @@ class SessionManager:
         with open(self._meta_path(d), "w", encoding="utf-8") as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)
 
+    @staticmethod
+    def _write_dbc(path: str, text: str) -> None:
+        """统一的 DBC 落盘入口：用 DBC_ENCODING + replace 兜底，遇到不可编码字符记 warning。"""
+        try:
+            encoded = text.encode(DBC_ENCODING)
+        except UnicodeEncodeError:
+            encoded = text.encode(DBC_ENCODING, errors="replace")
+            bad = sum(
+                1 for ch in text
+                if not _is_encodable(ch, DBC_ENCODING)
+            )
+            logger.warning(
+                "DBC 文件含 %d 个 %s 编码无法表示的字符，已替换为 '?' 写入 %s",
+                bad, DBC_ENCODING, path,
+            )
+        with open(path, "wb") as f:
+            f.write(encoded)
+
     def _touch(self, sid):
         meta = self._read_meta(sid)
         meta["last_op_at"] = time.time()
@@ -1283,10 +1312,8 @@ class SessionManager:
         sid = uuid.uuid4().hex
         d = os.path.join(self.base_dir, sid)
         os.makedirs(d, exist_ok=True)
-        with open(self._orig_path(d), "w", encoding="gbk", newline="") as f:
-            f.write(text)
-        with open(self._curr_path(d), "w", encoding="gbk", newline="") as f:
-            f.write(text)
+        self._write_dbc(self._orig_path(d), text)
+        self._write_dbc(self._curr_path(d), text)
 
         now = time.time()
         meta = {
@@ -1319,8 +1346,7 @@ class SessionManager:
 
     def save_current(self, sid, db):
         d = self._ensure(sid)
-        with open(self._curr_path(d), "w", encoding="gbk", newline="") as f:
-            f.write(db.as_dbc_string())
+        self._write_dbc(self._curr_path(d), db.as_dbc_string())
         self._touch(sid)
 
     def finalize(self, sid, name_hint=None):
