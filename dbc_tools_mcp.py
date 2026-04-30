@@ -38,18 +38,21 @@ import numpy as np
 import random
 random.seed(42) # 固定种子值
 mcp = FastMCP("dbc_tools")
-DBC_STORAGE_DIR = "/tmp/dbc_store"
-DBC_FINAL_DIR = "./data/dbc_output"
-DBC_SESSION_DIR = os.environ.get("DBC_SESSION_DIR", "./data/sessions")
-DBC_LOG_DIR = os.environ.get("DBC_LOG_DIR", "./data/logs")
+# 数据目录默认放在 /tmp 下（兼容 serverless / 只读容器，例如 Lambda 容器只有 /tmp 可写）。
+# 持久化部署请挂载卷并通过环境变量覆盖：
+#   DBC_DATA_ROOT=/data
+#   或单独覆盖 DBC_FINAL_DIR / DBC_SESSION_DIR / DBC_LOG_DIR / DBC_STORAGE_DIR
+DBC_DATA_ROOT = os.environ.get("DBC_DATA_ROOT", "/tmp/dbc_mcp")
+DBC_STORAGE_DIR = os.environ.get("DBC_STORAGE_DIR", os.path.join(DBC_DATA_ROOT, "dbc_store"))
+DBC_FINAL_DIR = os.environ.get("DBC_FINAL_DIR", os.path.join(DBC_DATA_ROOT, "dbc_output"))
+DBC_SESSION_DIR = os.environ.get("DBC_SESSION_DIR", os.path.join(DBC_DATA_ROOT, "sessions"))
+DBC_LOG_DIR = os.environ.get("DBC_LOG_DIR", os.path.join(DBC_DATA_ROOT, "logs"))
 DBC_SESSION_TTL_SECONDS = int(os.environ.get("DBC_SESSION_TTL", 24 * 3600))
 # 用户能访问到的 MCP 服务地址（不要带尾斜杠）
 # 例：http://10.0.0.5:8081 / https://mcp.yourdomain.com
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8081")
-os.makedirs(DBC_STORAGE_DIR, exist_ok=True)
-os.makedirs(DBC_FINAL_DIR, exist_ok=True)
-os.makedirs(DBC_SESSION_DIR, exist_ok=True)
-os.makedirs(DBC_LOG_DIR, exist_ok=True)
+for _d in (DBC_STORAGE_DIR, DBC_FINAL_DIR, DBC_SESSION_DIR, DBC_LOG_DIR):
+    os.makedirs(_d, exist_ok=True)
 
 # ============================================================
 # 日志（#20：标准 logging 替代 print）
